@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Gesture timer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..100,400..800&display=swap">
+<style>
+:root{--bg:#1d2125;--panel:#262b30;--ink:#e8ebed;--dim:#98a1a8;--acc:#8cc4d6;--line:#3a4148}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:Archivo,system-ui,sans-serif}
+button,input,select{font:inherit;color:inherit;touch-action:manipulation}
+body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-text-size-adjust:100%}
+:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.hidden{display:none!important}
+#setup{max-width:600px;margin:0 auto;padding:max(32px,env(safe-area-inset-top)) 20px 60px}
+h1{font-size:2.4rem;font-weight:800;font-stretch:75%;letter-spacing:-.02em;margin:0 0 4px}
+.sub{color:var(--dim);margin:0 0 28px}
+fieldset{border:0;border-top:1px solid var(--line);margin:0;padding:18px 0 20px}
+legend{padding:0 10px 0 0;font-weight:700;font-size:1rem}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.btn{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 16px;min-height:46px;min-width:46px;cursor:pointer}
+.btn:hover{border-color:var(--dim)}
+.btn[aria-pressed=true]{background:var(--acc);border-color:var(--acc);color:#10242b;font-weight:700}
+.go{width:100%;margin-top:10px;padding:16px;font-size:1.15rem;font-weight:800;background:var(--acc);color:#10242b;border:0;border-radius:6px;cursor:pointer}
+.go:disabled{opacity:.35;cursor:not-allowed}
+input[type=number],select{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px;min-height:46px;width:92px;font-size:16px}
+select{width:auto}
+label.chk{display:flex;gap:8px;align-items:center;cursor:pointer;margin-right:14px;min-height:46px}
+label.chk input{width:22px;height:22px}
+#status{color:var(--dim);margin:10px 0 0;min-height:1.4em}
+#status.ok{color:var(--acc)}
+#session{position:fixed;inset:0;display:flex;flex-direction:column;background:#111417}
+#bar{height:5px;background:var(--line);flex:none}
+#fill{height:100%;width:100%;background:var(--acc);transform-origin:left}
+#stage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;overflow:hidden}
+#wrap{position:relative;display:inline-block;line-height:0}
+#img{max-width:100vw;max-height:calc(100dvh - 5px - 72px - env(safe-area-inset-bottom));display:block;user-select:none}
+#img.flip{transform:scaleX(-1)}
+#img.gray{filter:grayscale(1)}
+#grid{position:absolute;inset:0;pointer-events:none;
+background:linear-gradient(to bottom,transparent calc(33.33% - .5px),#ffffff70 calc(33.33% - .5px),#ffffff70 calc(33.33% + .5px),transparent calc(33.33% + .5px),transparent calc(66.66% - .5px),#ffffff70 calc(66.66% - .5px),#ffffff70 calc(66.66% + .5px),transparent calc(66.66% + .5px)),linear-gradient(to right,transparent calc(33.33% - .5px),#ffffff70 calc(33.33% - .5px),#ffffff70 calc(33.33% + .5px),transparent calc(33.33% + .5px),transparent calc(66.66% - .5px),#ffffff70 calc(66.66% - .5px),#ffffff70 calc(66.66% + .5px),transparent calc(66.66% + .5px))}
+#ctl{height:calc(72px + env(safe-area-inset-bottom));flex:none;display:flex;align-items:center;gap:8px;padding:0 14px env(safe-area-inset-bottom);background:var(--bg);border-top:1px solid var(--line)}
+#time{font-size:1.8rem;font-weight:800;font-stretch:75%;font-variant-numeric:tabular-nums;min-width:4.2ch}
+#count{color:var(--dim);margin-right:auto;white-space:nowrap}
+#ctl .btn{padding:8px 12px;font-size:1.05rem}
+#done{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:var(--bg);text-align:center;padding:20px}
+#done h2{font-size:2.2rem;margin:0;font-stretch:75%;font-weight:800}
+@media(max-width:900px){#ctl .lbl{display:none}}
+@media(max-width:520px){h1{font-size:2rem}#ctl{gap:5px;padding-left:8px;padding-right:8px}#ctl .btn{padding:8px;min-width:42px}#count{display:none}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<main id="setup">
+  <h1>Gesture timer</h1>
+  <p class="sub">Timed figure drawing from your own reference images.</p>
+
+  <fieldset>
+    <legend>Images</legend>
+    <div class="row">
+      <button class="btn" id="pickFolder">Choose folder</button>
+      <button class="btn" id="pickFiles">Choose files</button>
+    </div>
+    <input id="inFolder" type="file" webkitdirectory multiple class="hidden">
+    <input id="inFiles" type="file" accept="image/*" multiple class="hidden">
+    <p id="status">Looking for the images folder…</p>
+  </fieldset>
+
+  <fieldset>
+    <legend>Session</legend>
+    <div class="row" style="margin-bottom:14px">
+      <select id="plan" aria-label="Session type">
+        <option value="single">Single timing</option>
+        <option value="class">Classic class (5×30s, 5×1m, 3×2m, 2×5m, 1×10m)</option>
+        <option value="warm">Warm-up (10×30s, 5×1m)</option>
+      </select>
+    </div>
+    <div id="singleOpts">
+      <div class="row" id="presets" style="margin-bottom:12px"></div>
+      <div class="row">
+        <label>Custom seconds <input id="secs" type="number" min="5" max="3600" value="60"></label>
+        <label>Images <input id="num" type="number" min="1" max="500" value="20"></label>
+      </div>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Options</legend>
+    <div class="row">
+      <label class="chk"><input type="checkbox" id="oShuffle" checked> Shuffle</label>
+      <label class="chk"><input type="checkbox" id="oGray"> Grayscale</label>
+      <label class="chk"><input type="checkbox" id="oFlip"> Flip</label>
+      <label class="chk"><input type="checkbox" id="oGrid"> Grid</label>
+      <label class="chk"><input type="checkbox" id="oBeep" checked> Beep</label>
+    </div>
+  </fieldset>
+
+  <button class="go" id="start" disabled>Start session</button>
+</main>
+
+<section id="session" class="hidden" aria-live="off">
+  <div id="bar"><div id="fill"></div></div>
+  <div id="stage"><div id="wrap"><img id="img" alt="Reference pose" draggable="false"><div id="grid" class="hidden"></div></div></div>
+  <div id="ctl">
+    <span id="time">0:00</span>
+    <span id="count"></span>
+    <button class="btn" id="bPrev" title="Previous (←)">◀<span class="lbl"> Prev</span></button>
+    <button class="btn" id="bPause" title="Pause (Space)">❚❚<span class="lbl"> Pause</span></button>
+    <button class="btn" id="bNext" title="Next (→)"><span class="lbl">Next </span>▶</button>
+    <button class="btn" id="bFlip" title="Flip (F)" aria-pressed="false">Flip</button>
+    <button class="btn" id="bGray" title="Grayscale (G)" aria-pressed="false">B/W</button>
+    <button class="btn" id="bGrid" title="Grid (D)" aria-pressed="false">Grid</button>
+    <button class="btn" id="bFull" title="Fullscreen" aria-label="Fullscreen">⛶</button>
+    <button class="btn" id="bEnd" title="End (Esc)">End</button>
+  </div>
+</section>
+
+<section id="done" class="hidden">
+  <h2>Session complete</h2>
+  <p id="doneTxt" class="sub"></p>
+  <div class="row"><button class="btn" id="again">Run again</button><button class="btn" id="back">Back to setup</button></div>
+</section>
+
+<script>
+const $ = id => document.getElementById(id);
+const EXT = /\.(jpe?g|png|webp|gif|avif|bmp)$/i;
+let pool = [], queue = [], plan = [], idx = 0;
+let endAt = 0, leftMs = 0, paused = false, raf = 0, curSecs = 60, lastBeepSec = -1;
+let presetSecs = 60, ctx;
+
+// presets
+[[30,'30s'],[60,'1m'],[120,'2m'],[300,'5m'],[600,'10m']].forEach(([s,l]) => {
+  const b = document.createElement('button');
+  b.className = 'btn'; b.textContent = l; b.setAttribute('aria-pressed', s === 60);
+  b.onclick = () => { presetSecs = s; $('secs').value = s; syncPresets(); };
+  b.dataset.s = s; $('presets').appendChild(b);
+});
+function syncPresets(){
+  const v = +$('secs').value;
+  document.querySelectorAll('#presets .btn').forEach(b => b.setAttribute('aria-pressed', +b.dataset.s === v));
+}
+$('secs').oninput = syncPresets;
+$('plan').onchange = () => $('singleOpts').classList.toggle('hidden', $('plan').value !== 'single');
+
+// image sources
+function setPool(list, msg){
+  pool = list;
+  $('status').textContent = msg;
+  $('status').className = list.length ? 'ok' : '';
+  $('start').disabled = !list.length;
+}
+function fromFiles(files){
+  const imgs = [...files].filter(f => f.type.startsWith('image/') || EXT.test(f.name));
+  pool.forEach(p => p.local && URL.revokeObjectURL(p.src));
+  setPool(imgs.map(f => ({src: URL.createObjectURL(f), name: f.name, local: true})),
+    imgs.length ? imgs.length + ' images loaded from your device.' : 'No images found in that selection.');
+}
+$('pickFolder').onclick = () => $('inFolder').click();
+$('pickFiles').onclick = () => $('inFiles').click();
+$('inFolder').onchange = e => fromFiles(e.target.files);
+$('inFiles').onchange = e => fromFiles(e.target.files);
+
+function repoInfo(){
+  const q = new URLSearchParams(location.search).get('repo');
+  if (q && q.includes('/')) return q.split('/');
+  const m = location.hostname.match(/^([^.]+)\.github\.io$/i);
+  if (!m) return null;
+  const seg = location.pathname.split('/').filter(Boolean)[0];
+  return [m[1], seg && !/\.html?$/i.test(seg) ? seg : m[1] + '.github.io'];
+}
+async function loadHosted(){
+  let list = null; const info = repoInfo();
+  if (info){
+    const key = 'imgs:' + info.join('/');
+    try { list = JSON.parse(sessionStorage.getItem(key)); } catch (e) {}
+    if (!list || !list.length){
+      try {
+        const r = await fetch('https://api.github.com/repos/' + info[0] + '/' + info[1] + '/git/trees/HEAD?recursive=1');
+        if (!r.ok) throw 0;
+        const j = await r.json();
+        list = j.tree.filter(t => t.type === 'blob' && t.path.startsWith('images/') && EXT.test(t.path)).map(t => t.path);
+        if (list.length) try { sessionStorage.setItem(key, JSON.stringify(list)); } catch (e) {}
+      } catch (e) { list = null; }
+    }
+  }
+  if (!list || !list.length){
+    try { const r = await fetch('images.json', {cache: 'no-cache'}); if (r.ok) list = (await r.json()).filter(p => EXT.test(p)); } catch (e) {}
+  }
+  if (pool.length) return;
+  if (list && list.length) setPool(list.map(p => ({src: p.split('/').map(encodeURIComponent).join('/'), name: p})), list.length + ' images loaded from the images folder.');
+  else setPool([], 'No images found in the images folder. Choose files from your device instead.');
+}
+loadHosted();
+
+// session
+const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+const rep = (n, s) => Array(n).fill(s);
+function buildPlan(){
+  const t = $('plan').value;
+  if (t === 'class') return [...rep(5,30), ...rep(5,60), ...rep(3,120), ...rep(2,300), 600];
+  if (t === 'warm')  return [...rep(10,30), ...rep(5,60)];
+  const s = Math.max(5, +$('secs').value || 60), n = Math.max(1, +$('num').value || 1);
+  return rep(n, s);
+}
+function fmt(ms){ const s = Math.ceil(ms / 1000); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
+
+function start(){
+  queue = $('oShuffle').checked ? shuffle([...pool]) : [...pool];
+  plan = buildPlan().slice(0, queue.length);
+  idx = 0; paused = false;
+  $('bPause').firstChild.textContent = '❚❚'; $('bPause').lastChild.textContent = ' Pause';
+  setToggle('flip', $('oFlip').checked); setToggle('gray', $('oGray').checked); setToggle('grid', $('oGrid').checked);
+  $('setup').classList.add('hidden'); $('done').classList.add('hidden'); $('session').classList.remove('hidden');
+  show(0);
+  loop();
+}
+function show(i){
+  idx = i; curSecs = plan[i]; leftMs = curSecs * 1000; endAt = performance.now() + leftMs; lastBeepSec = -1;
+  $('img').src = queue[i].src;
+  $('count').textContent = (i + 1) + ' / ' + plan.length;
+  const nx = queue[i + 1]; if (nx) new Image().src = nx.src;
+  paint();
+}
+function paint(){
+  $('time').textContent = fmt(leftMs);
+  $('fill').style.transform = 'scaleX(' + Math.max(0, leftMs / (curSecs * 1000)) + ')';
+}
+function loop(){
+  cancelAnimationFrame(raf);
+  const f = () => {
+    if (!paused){
+      leftMs = endAt - performance.now();
+      const s = Math.ceil(leftMs / 1000);
+      if (s <= 3 && s > 0 && s !== lastBeepSec && curSecs > 10){ lastBeepSec = s; beep(520, .06); }
+      if (leftMs <= 0){ beep(880, .25); return next(true); }
+      paint();
+    }
+    raf = requestAnimationFrame(f);
+  };
+  raf = requestAnimationFrame(f);
+}
+function next(auto){
+  if (idx + 1 >= plan.length) return finish();
+  show(idx + 1); if (auto) loop();
+}
+function prev(){ if (idx > 0) show(idx - 1); }
+function togglePause(){
+  paused = !paused;
+  if (paused) leftMs = endAt - performance.now(); else endAt = performance.now() + leftMs;
+  $('bPause').firstChild.textContent = paused ? '▶' : '❚❚';
+  $('bPause').lastChild.textContent = paused ? ' Resume' : ' Pause';
+}
+function finish(){
+  cancelAnimationFrame(raf);
+  const total = plan.reduce((a, b) => a + b, 0);
+  $('doneTxt').textContent = plan.length + ' poses · ' + Math.round(total / 60) + ' min of drawing.';
+  $('session').classList.add('hidden'); $('done').classList.remove('hidden');
+}
+function endNow(){ cancelAnimationFrame(raf); $('session').classList.add('hidden'); $('setup').classList.remove('hidden'); }
+function setToggle(k, on){
+  if (k === 'grid') $('grid').classList.toggle('hidden', !on);
+  else $('img').classList.toggle(k, on);
+  $({flip:'bFlip',gray:'bGray',grid:'bGrid'}[k]).setAttribute('aria-pressed', on);
+}
+const flip = k => setToggle(k, $({flip:'bFlip',gray:'bGray',grid:'bGrid'}[k]).getAttribute('aria-pressed') !== 'true');
+function beep(freq, dur){
+  if (!$('oBeep').checked) return;
+  try {
+    ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.frequency.value = freq; g.gain.value = .08;
+    o.connect(g); g.connect(ctx.destination); o.start(); o.stop(ctx.currentTime + dur);
+  } catch (e) {}
+}
+
+$('start').onclick = start;
+$('bNext').onclick = () => next(false);
+$('bPrev').onclick = prev;
+$('bPause').onclick = togglePause;
+$('bFlip').onclick = () => flip('flip');
+$('bGray').onclick = () => flip('gray');
+$('bGrid').onclick = () => flip('grid');
+$('bEnd').onclick = endNow;
+const fsEl = document.documentElement, fsReq = fsEl.requestFullscreen || fsEl.webkitRequestFullscreen;
+if (!fsReq) $('bFull').classList.add('hidden');
+$('bFull').onclick = () => { const on = document.fullscreenElement || document.webkitFullscreenElement;
+  if (on) (document.exitFullscreen || document.webkitExitFullscreen).call(document); else fsReq.call(fsEl); };
+$('again').onclick = start;
+$('back').onclick = () => { $('done').classList.add('hidden'); $('setup').classList.remove('hidden'); };
+document.addEventListener('keydown', e => {
+  if ($('session').classList.contains('hidden') || e.target.tagName === 'INPUT') return;
+  const k = e.key.toLowerCase();
+  if (k === ' ') { e.preventDefault(); togglePause(); }
+  else if (k === 'arrowright') next(false);
+  else if (k === 'arrowleft') prev();
+  else if (k === 'f') flip('flip');
+  else if (k === 'g') flip('gray');
+  else if (k === 'd') flip('grid');
+  else if (k === 'escape') endNow();
+});
+</script>
+</body>
+</html>
